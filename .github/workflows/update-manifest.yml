@@ -2,9 +2,8 @@ name: Update StrmTool Manifest
 
 on:
   schedule:
-    # 每天 UTC 04:00（台湾时间中午12点）检查一次
     - cron: '0 4 * * *'
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,72 +20,57 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # 获取 jinlin-teck/StrmTool 的所有 releases，筛选 jellyfin 标签
           RELEASE_JSON=$(curl -s -H "Authorization: token $GH_TOKEN" \
             "https://api.github.com/repos/jinlin-teck/StrmTool/releases" \
             | jq '[.[] | select(.tag_name | contains("jellyfin"))] | sort_by(.published_at) | reverse | .[0]')
 
           if [ "$RELEASE_JSON" = "null" ] || [ -z "$RELEASE_JSON" ]; then
-            echo "No jellyfin release found"
             echo "has_update=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           TAG=$(echo "$RELEASE_JSON" | jq -r '.tag_name')
           PUBLISHED=$(echo "$RELEASE_JSON" | jq -r '.published_at')
-          CHANGELOG=$(echo "$RELEASE_JSON" | jq -r '.body // "Bug fixes and improvements"')
 
-          # 提取版本号：v2.4.0-jellyfin -> 2.4.0.0
           VERSION=$(echo "$TAG" | sed 's/^v//' | sed 's/-jellyfin//')
-          # 确保是四段版本号
           DOTS=$(echo "$VERSION" | tr -cd '.' | wc -c)
           if [ "$DOTS" -eq 2 ]; then
             VERSION="${VERSION}.0"
           fi
 
-          # 查找 DLL 资产下载链接
           DLL_URL=$(echo "$RELEASE_JSON" | jq -r '.assets[] | select(.name | test("StrmTool.*\\.dll$"; "i")) | .browser_download_url' | head -1)
 
           if [ -z "$DLL_URL" ]; then
-            echo "No DLL asset found in release $TAG"
             echo "has_update=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # 检查当前 manifest 中的版本
           CURRENT_VERSION=""
           if [ -f manifest.json ]; then
             CURRENT_VERSION=$(jq -r '.[0].versions[0].version // ""' manifest.json)
           fi
 
           if [ "$VERSION" = "$CURRENT_VERSION" ]; then
-            echo "Already up to date: $VERSION"
             echo "has_update=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "New version found: $VERSION (was: $CURRENT_VERSION)"
+          echo "$RELEASE_JSON" | jq -r '.body // "Bug fixes and improvements"' > /tmp/changelog.txt
+
           echo "has_update=true" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
           echo "dll_url=$DLL_URL" >> "$GITHUB_OUTPUT"
-          # 保存 changelog 到文件避免多行问题
-          echo "$CHANGELOG" > /tmp/changelog.txt
 
       - name: Download DLL and create zip
         if: steps.check.outputs.has_update == 'true'
         run: |
           mkdir -p StrmTool
           curl -L -o StrmTool/StrmTool.dll "${{ steps.check.outputs.dll_url }}"
-
-          # 创建 zip（Jellyfin 插件仓库需要 zip 格式）
           zip -j StrmTool.zip StrmTool/StrmTool.dll
-
-          # 计算 MD5 校验和
           CHECKSUM=$(md5sum StrmTool.zip | awk '{print $1}')
           echo "checksum=$CHECKSUM" >> "$GITHUB_ENV"
-          echo "Checksum: $CHECKSUM"
 
       - name: Update manifest.json
         if: steps.check.outputs.has_update == 'true'
@@ -94,36 +78,37 @@ jobs:
           VERSION="${{ steps.check.outputs.version }}"
           TAG="${{ steps.check.outputs.tag }}"
           PUBLISHED="${{ steps.check.outputs.published }}"
-          CHANGELOG=$(cat /tmp/changelog.txt | head -5 | tr '\n' ' ')
           REPO="${{ github.repository }}"
           SOURCE_URL="https://github.com/${REPO}/releases/download/${TAG}/StrmTool.zip"
+          CHANGELOG=$(head -5 /tmp/changelog.txt | tr '\n' ' ' | tr '\r' ' ')
 
-          cat > manifest.json << MANIFEST_EOF
-          [
-            {
-              "guid": "6107fc8c-883a-4171-b70e-7590658706b9",
-              "name": "StrmTool",
-              "description": "从 strm 文件中提取媒体技术信息（编解码器、分辨率、字幕），以增强媒体库显示和播放性能。\\nExtract media technical information from strm files to enhance library display and playback performance.",
-              "overview": "Strm 媒体信息提取与缓存 / Strm Media Info Extraction & Cache",
-              "owner": "jinlin-teck",
-              "category": "General",
-              "imageUrl": "",
-              "versions": [
-                {
-                  "version": "${VERSION}",
-                  "changelog": "${CHANGELOG}",
-                  "targetAbi": "10.11.0.0",
-                  "sourceUrl": "${SOURCE_URL}",
-                  "checksum": "${CHECKSUM}",
-                  "timestamp": "${PUBLISHED}"
-                }
-              ]
-            }
-          ]
-          MANIFEST_EOF
-
-          # 用 jq 格式化确保 JSON 合法
-          jq '.' manifest.json > manifest_tmp.json && mv manifest_tmp.json manifest.json
+          jq -n \
+            --arg guid "6107fc8c-883a-4171-b70e-7590658706b9" \
+            --arg desc "Extract media technical information (codec, resolution, subtitles) from strm files to enhance library display and playback performance." \
+            --arg overview "Strm Media Info Extraction & Cache" \
+            --arg version "$VERSION" \
+            --arg changelog "$CHANGELOG" \
+            --arg targetAbi "10.11.0.0" \
+            --arg sourceUrl "$SOURCE_URL" \
+            --arg checksum "$CHECKSUM" \
+            --arg timestamp "$PUBLISHED" \
+            '[{
+              guid: $guid,
+              name: "StrmTool",
+              description: $desc,
+              overview: $overview,
+              owner: "jinlin-teck",
+              category: "General",
+              imageUrl: "",
+              versions: [{
+                version: $version,
+                changelog: $changelog,
+                targetAbi: $targetAbi,
+                sourceUrl: $sourceUrl,
+                checksum: $checksum,
+                timestamp: $timestamp
+              }]
+            }]' > manifest.json
 
       - name: Create Release and upload zip
         if: steps.check.outputs.has_update == 'true'
@@ -131,14 +116,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.check.outputs.tag }}"
-
-          # 删除旧的同名 release（如果存在）
           gh release delete "$TAG" --yes 2>/dev/null || true
-
-          # 创建新 release 并上传 zip
           gh release create "$TAG" StrmTool.zip \
-            --title "StrmTool ${{ steps.check.outputs.version }} for Jellyfin" \
-            --notes "Auto-synced from [jinlin-teck/StrmTool](https://github.com/jinlin-teck/StrmTool/releases/tag/$TAG)"
+            --title "StrmTool ${{ steps.check.outputs.version }}" \
+            --notes "Synced from [jinlin-teck/StrmTool](https://github.com/jinlin-teck/StrmTool/releases/tag/$TAG)"
 
       - name: Commit manifest
         if: steps.check.outputs.has_update == 'true'
