@@ -2,11 +2,20 @@
   {
     "guid": "6107fc8c-883a-4171-b70e-7590658706b9",
     "name": "StrmTool",
-    "description": "从 strm 文件中提取媒体技术信息（编解码器、分辨率、字幕），以增强媒体库显示和播放性能。\nExtract media technical information from strm files to enhance library display and playback performance.",
-    "overview": "Strm 媒体信息提取与缓存 / Strm Media Info Extraction & Cache",
+    "description": "Extract media technical information (codec, resolution, subtitles) from strm files to enhance library display and playback performance.",
+    "overview": "Strm Media Info Extraction & Cache",
     "owner": "jinlin-teck",
     "category": "General",
     "imageUrl": "",
-    "versions": []
+    "versions": [
+      {
+        "version": "2.4.0.0",
+        "changelog": "## 更新日志    ### ✨ 新功能与配置    - ⚙️ **元数据恢复超时配置**：新增 `MetadataRestoreTimeoutMinutes` 设置项（默认 5 分钟，范围 1-30）  ",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/NaUuuu/jellyfin-plugin-repo/releases/download/v2.4.0-jellyfin/StrmTool.zip",
+        "checksum": "",
+        "timestamp": "2026-02-27T14:08:11Z"
+      }
+    ]
   }
 ]
