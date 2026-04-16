@@ -13,7 +13,7 @@
         "changelog": "Auto-built from upstream commit 25fdcb7",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/NaUuuu/jellyfin-plugin-repo/releases/download/v2.4.0.0-25fdcb7/StrmTool.zip",
-        "checksum": "",
+        "checksum": "81a6e421ecba06bb26ea71581584017a",
         "timestamp": "2026-02-27T14:03:36Z"
       }
     ]
