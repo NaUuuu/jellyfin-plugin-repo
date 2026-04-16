@@ -125,7 +125,7 @@ jobs:
             --arg changelog "$CHANGELOG" \
             --arg targetAbi "10.11.0.0" \
             --arg sourceUrl "$SOURCE_URL" \
-            --arg checksum "$CHECKSUM" \
+            --arg checksum "${{ env.checksum }}" \
             --arg timestamp "$TIMESTAMP" \
             '[{
               guid: $guid,
